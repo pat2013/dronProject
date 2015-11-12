@@ -3,6 +3,7 @@ package com.pat.gardadrone;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
 import android.graphics.Point;
+import android.os.AsyncTask;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import com.ehang.gcs_amap.comms.CopterClient;
@@ -33,8 +34,10 @@ public class MainActivity extends ActionBarActivity {
     private String[] result;
     private double lan;
     private double lng;
-    private boolean fly;
+    private volatile boolean  fly;
+    private Object lock;
     CopterClient ba = new CopterClient(this);
+    private FlyTask flyTask;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,19 +99,17 @@ public class MainActivity extends ActionBarActivity {
             @Override
             public void onClick(View v) {
                 Log.d(String.valueOf(lan), String.valueOf(lng));
-                while(fly) {
-                    //fly 8 points around the home points
-                   for(GeoCoordinates point : getAllpoints(lan, lng, 0.1, 8)) {
-                       ba.FlyTo(point.getLatitude(), point.getLongitude(), 20);
-                   }
-                }
+                flyTask = new FlyTask();
+                flyTask.execute();
             }
         });
         //land the drone
         end.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                fly = false;
+                synchronized (lock) {
+                    fly = false;
+                }
                 //return drone to launch point
                 ba.RTL();
                 //land drone
@@ -117,6 +118,55 @@ public class MainActivity extends ActionBarActivity {
                 ba.doARM(false);
             }
         });
+    }
+
+    class FlyTask extends AsyncTask<Void, Void, Void> {
+
+        // 1
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
+
+
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            super.onPostExecute(aVoid);
+        }
+
+        //3
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            super.onProgressUpdate(values);
+        }
+
+        @Override
+        protected void onCancelled(Void aVoid) {
+            super.onCancelled(aVoid);
+        }
+
+        @Override
+        protected void onCancelled() {
+            super.onCancelled();
+        }
+
+        // 2
+        @Override
+        protected Void doInBackground(Void... params) {
+
+            while(true) {
+                //fly 8 points around the home points
+                for(GeoCoordinates point : getAllpoints(lan, lng, 20, 8)) {
+                    ba.FlyTo(point.getLatitude(), point.getLongitude(), 20);
+                }
+                synchronized (lock) {
+                    if (!fly) {
+                        break;
+                    }
+                }
+            }
+            return null;
+        }
     }
 
     // toast maker
@@ -144,7 +194,7 @@ public class MainActivity extends ActionBarActivity {
         return Double.valueOf(s);
     }
     //generate 8 points around home address
-    private ArrayList<GeoCoordinates> getAllpoints(double lan, double lng, double range, int num) {
+    private ArrayList<GeoCoordinates> getAllpoints(double lan, double lng, int range, int num) {
         int degreesPerPoint = 360 / num;
         // Keep track of the angle from centre to radius
         int currentAngle = 0;
