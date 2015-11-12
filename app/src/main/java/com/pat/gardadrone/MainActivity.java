@@ -38,6 +38,8 @@ public class MainActivity extends ActionBarActivity {
     private Object lock;
     CopterClient ba = new CopterClient(this);
     private FlyTask flyTask;
+    protected boolean gotStream;
+    private GeoCoordinates currentDroneLocaion;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -118,9 +120,50 @@ public class MainActivity extends ActionBarActivity {
                 ba.doARM(false);
             }
         });
+
+        ba.SetOnDataReceiveEvent(new DataReceiveEvent() {
+
+            @Override
+            public void Attitude(float arg0, float arg1, float arg2) {
+                // TODO Auto-generated method stub
+            }
+
+            @Override
+            public void Channels(short arg0, short arg1, short arg2,
+                                 short arg3, short arg4, short arg5, short arg6, short arg7) {
+                // TODO Auto-generated method stub
+            }
+
+            @Override
+            public void GpsStatus(double arg0, double arg1, int arg2, int arg3) {
+                currentDroneLocaion.setLatitude(arg0);
+                currentDroneLocaion.setLongitude(arg1);
+            }
+
+            @Override
+            public void HUDInfo(float arg0, float arg1, float arg2, float arg3,
+                                int arg4, int arg5) {
+                // TODO Auto-generated method stub
+            }
+
+            @Override
+            public void Heartbeat(ac2modes arg0, boolean arg1) {
+                // TODO Auto-generated method stub
+                if (gotStream == false) {
+                    gotStream = true;
+                    ba.getCopterData();
+                }
+            }
+
+            @Override
+            public void SysStatus(float arg0) {
+                // TODO Auto-generated method stub
+            }
+
+        });
     }
 
-    class FlyTask extends AsyncTask<Void, Void, Void> {
+    private class FlyTask extends AsyncTask<Void, Void, Void> {
 
         // 1
         @Override
@@ -153,17 +196,24 @@ public class MainActivity extends ActionBarActivity {
         // 2
         @Override
         protected Void doInBackground(Void... params) {
-
-            while(true) {
-                //fly 8 points around the home points
-                for(GeoCoordinates point : getAllpoints(lan, lng, 20, 8)) {
-                    ba.FlyTo(point.getLatitude(), point.getLongitude(), 20);
-                }
-                synchronized (lock) {
-                    if (!fly) {
-                        break;
+            ArrayList<GeoCoordinates> path = getAllpoints(lan, lng, 20, 8);
+            while (true) {
+                    //fly 8 points around the home points
+                    for (int i = 0; i < path.size(); i++) {
+                        //if drone at fist point in the path fly to next point in the path
+                        if(currentDroneLocaion.equals(path.get(i))) {
+                            ba.FlyTo(path.get(i + 1).getLatitude(), path.get(i + 1).getLatitude(), 20);
+                        }
+                        //fly drone to first point in the path
+                        else {
+                            ba.FlyTo(path.get(i).getLatitude(), path.get(i).getLongitude(), 20);
+                        }
                     }
-                }
+                    synchronized (lock) {
+                        if (!fly) {
+                            break;
+                        }
+                    }
             }
             return null;
         }
